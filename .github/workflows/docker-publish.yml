@@ -23,13 +23,13 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Build and Push to Registry
         uses: docker/build-push-action@v3
         with:
           file: Dockerfile.api
-          tags: ${{github.actor}}/proxy-downloader:latest
+          tags: ${{ github.repository_owner }}/proxy-downloader:latest
           push: ${{ github.ref == 'refs/heads/master' }}
           
       - name: Image digest
