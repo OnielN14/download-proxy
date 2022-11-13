@@ -28,6 +28,7 @@ jobs:
       - name: Build and Push to Registry
         uses: docker/build-push-action@v3
         with:
+          file: Dockerfile.api
           tags: ${{github.actor}}/proxy-downloader:latest
           push: ${{ github.ref == 'refs/heads/master' }}
           
