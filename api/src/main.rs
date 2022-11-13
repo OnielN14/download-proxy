@@ -3,9 +3,20 @@ use actix_web::{
     http::header::{self, ContentType, DispositionParam},
     post, web, App, HttpResponse, HttpServer, Responder,
 };
+use clap::{arg, command, Parser};
 use downloader::{download as file_downloader, ParseFilename};
 use futures::{future, stream};
 use serde::{Deserialize, Serialize};
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(long, default_value_t = String::from("127.0.0.1"))]
+    host: String,
+
+    #[arg(short, long, default_value_t = 8080)]
+    port: u16,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct VersionMessage {
@@ -34,8 +45,8 @@ impl Responder for VersionMessage {
 #[get("/")]
 async fn index() -> impl Responder {
     VersionMessage {
-        message: String::from("Welcome"),
-        version: String::from("1.0"),
+        message: String::from("Welcome!"),
+        version: String::from(env!("CARGO_PKG_VERSION")),
     }
 }
 
@@ -58,11 +69,17 @@ async fn download(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let cli_args = Args::parse();
+
     let listener = HttpServer::new(|| App::new().service(index).service(download))
-        .bind(("127.0.0.1", 8080))?
+        .bind((cli_args.host.clone(), cli_args.port))?
         .run();
 
-    println!("🚀 Server launch at 127.0.0.1:8080");
+    println!(
+        "🚀 Server listen on {host}:{port}",
+        host = cli_args.host,
+        port = cli_args.port
+    );
 
     listener.await
 }
