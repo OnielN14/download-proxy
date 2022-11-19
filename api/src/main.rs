@@ -1,12 +1,17 @@
 use actix_web::{
     get,
     http::header::{self, ContentType, DispositionParam},
-    post, web, App, HttpResponse, HttpServer, Responder,
+    middleware::Logger,
+    web, App, HttpResponse, HttpServer, Responder,
 };
 use clap::{arg, command, Parser};
 use downloader::{download as file_downloader, ParseFilename};
+use env_logger::Env;
 use futures::{future, stream};
 use serde::{Deserialize, Serialize};
+
+#[macro_use]
+extern crate log;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -30,6 +35,23 @@ struct DownloadRequestPayload {
     filename: Option<String>,
 }
 
+impl DownloadRequestPayload {
+    async fn download(self) -> Result<HttpResponse, Box<dyn std::error::Error>> {
+        let download_response = file_downloader(&self.url).await?;
+        let original_filename = download_response.get_filename();
+        let filename = &self.filename.unwrap_or(original_filename);
+        let file = download_response.bytes().await?;
+        let body = stream::once(future::ok::<_, actix_web::Error>(file));
+
+        Ok(HttpResponse::Ok()
+            .append_header(header::ContentDisposition {
+                disposition: { header::DispositionType::Attachment },
+                parameters: vec![DispositionParam::Filename(filename.to_string())],
+            })
+            .streaming(body))
+    }
+}
+
 impl Responder for VersionMessage {
     type Body = actix_web::body::BoxBody;
 
@@ -50,32 +72,36 @@ async fn index() -> impl Responder {
     }
 }
 
-#[post("/download")]
-async fn download(
-    data: web::Json<DownloadRequestPayload>,
-) -> Result<HttpResponse, Box<dyn std::error::Error>> {
-    let download_response = file_downloader(&data.url).await?;
-    let original_filename = download_response.get_filename();
-    let filename = data.filename.clone().unwrap_or(original_filename);
-    let file_bytes = download_response.bytes().await?;
-    let body = stream::once(future::ok::<_, actix_web::Error>(file_bytes));
-    Ok(HttpResponse::Ok()
-        .append_header(header::ContentDisposition {
-            disposition: { header::DispositionType::Attachment },
-            parameters: vec![DispositionParam::Filename(filename)],
-        })
-        .streaming(body))
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let cli_args = Args::parse();
 
-    let listener = HttpServer::new(|| App::new().service(index).service(download))
-        .bind((cli_args.host.clone(), cli_args.port))?
-        .run();
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    println!(
+    let listener = HttpServer::new(|| {
+        App::new()
+            .wrap(Logger::default())
+            .wrap(Logger::new("%a %{User-Agent}i"))
+            .service(index)
+            .service(
+                web::resource("/download")
+                    .route(
+                        web::get().to(|query: web::Query<DownloadRequestPayload>| async {
+                            query.into_inner().download().await
+                        }),
+                    )
+                    .route(web::post().to(
+                        |data: web::Either<
+                            web::Json<DownloadRequestPayload>,
+                            web::Form<DownloadRequestPayload>,
+                        >| async { data.into_inner().download().await },
+                    )),
+            )
+    })
+    .bind((cli_args.host.to_owned(), cli_args.port))?
+    .run();
+
+    info!(
         "🚀 Server listen on {host}:{port}",
         host = cli_args.host,
         port = cli_args.port
