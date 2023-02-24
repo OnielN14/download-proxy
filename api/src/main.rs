@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{
     get,
     http::header::{self, ContentType, DispositionParam},
@@ -79,7 +80,13 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
     let listener = HttpServer::new(|| {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
+
         App::new()
+            .wrap(cors)
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .service(index)
