@@ -20,6 +20,16 @@ impl ParseFilename for Response {
                     .get(1)
                     .unwrap()
                     .to_string();
+
+                if filename.contains(";") {
+                    filename = filename
+                        .split(";")
+                        .collect::<Vec<&str>>()
+                        .get(0)
+                        .unwrap()
+                        .replace("\"", "")
+                        .to_string()
+                }
             }
         } else if let Some(val) = self.url().path().split('/').last() {
             filename = urlencoding::decode(val).unwrap().replace(' ', "-");
