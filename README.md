@@ -25,9 +25,9 @@ Options:
   -V, --version      Print version information
 ```
 
-## Run From Docker
+## Run using Docker
 ```bash
-docker pull ghcr.io/onieln14/download-proxy:latest
+docker run -p 127.0.0.0:8080:8080 ghcr.io/onieln14/download-proxy:latest
 ```
 |Environment Variable|Description|
 |--------------------|-----------|
